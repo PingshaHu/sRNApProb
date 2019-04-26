@@ -1,0 +1,91 @@
+#!/usr/bin/python
+import os,sys,re
+import optparse
+
+#sys.path.append("/SD5/people/u781084/bin")
+
+#############################################################################
+# update from smRNAlociwprob2gff.py script, 1/23/2014, Pingsha Hu	
+# this is for multile samples posteriorProb in sRNA_loci_wprob.txt
+# add source at col2 as "sRNA_pipe_SYN", add posterior prob score at col6 	
+#
+# posterior prob infomatrion will be from sRNA_loci_wprob.txt						  	
+# run python ~/scr/smRNA_seq/smRNAloci2gff.py -i loci_all_samples.csv.parsed to get smRNAloci.gff file first
+# then use the smRNAloci.gff to get sRNA_loci_wprob.txt with bam files	
+# 
+# This script is used to change smallRNA loci with posterior prob to gff format	 	 
+# testing: 
+# python ~/scr/smRNA_seq/sRNAlociwprob2gff.py -i /scratch/4-quarterly/NGS-epigenetics/sRNA_loci_wprob.txt
+#############################################################################
+
+### usage ### 
+def usage():
+  print """Usage: sRNAlociwprob2gff.py -i sRNA_loci_wprob.txt
+	Arguments:	
+	-i,--infile		small RNA loci file, e.g. sRNA_loci_wprob.txt.   	
+	"""
+p = optparse.OptionParser()
+p.add_option('-i','--infile',action='store',type='string',dest="infile",help="small RNA loci with loci prob file")
+
+# set default values
+#p.set_defaults(p1='')
+
+# Parse the command line
+opts,args=p.parse_args()
+
+# Retrieve the option settings
+inf = opts.infile
+
+# set usage
+p.set_usage(usage())
+
+
+### functions ###
+def maxpProb(pProbfeild,cols):
+	pProbmax=0
+	pProbmin=0
+	for i in pProbfeild:
+		if cols[i] != 'NA' and float(cols[i])>=pProbmax: # due to the colnumber difference between headline (wo rowname) and other lines(with rowname)
+			pProbmax=float(cols[i])
+		#if cols[i+1] != 'NA' and float(cols[i+1])<pProbmin:
+		#	pPromin=float(cols[i+1])
+	return(pProbmax)		
+
+### main ###
+try:
+	smRNAf=open(inf,'r')
+except IOError:
+	sys.exit(inf," file not be found ","\n")
+
+#outfile=os.path.basename(inf)[:-4]+".gff"
+outfile='sRNA_loci.gff'
+out=open(outfile,'wb+')
+
+# headfile
+headline=smRNAf.readline()
+feild=headline.strip().split("\t")
+pProbfeild=[]
+i=0
+for f in feild:
+	if re.search("posteriorProb",f):
+		#print "found",i,f
+		pProbfeild.append(i)
+	i=i+1	
+		
+
+for line in smRNAf:
+	cols=line.strip().split("\t")
+	id=cols[0]
+	lociattr=cols[1] # smRNA or null locus
+	#probscore=cols[4]
+	probscore=maxpProb(pProbfeild,cols)
+	attribute='ID='+id+';'+'Name='+id
+	chr,start,end=id.split('.')
+	print>>out,"%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\n" % (chr,'sRNA_pipe_SYN',lociattr,int(start),int(end),probscore,'.','.',attribute)
+
+	
+smRNAf.close()	
+out.close()
+
+print "Done!"
+
